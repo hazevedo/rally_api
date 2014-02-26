@@ -1,16 +1,43 @@
 #! /usr/bin/env ruby
 
+# To build an ocra package for windows
+# ocra .\08-add-attachment.rb .\earthjello.jpeg
+
 require 'pp'
 require 'base64'
-
 require 'rally_api'
+require 'highline'
+require 'highline/import'
 
 #Configuration for rally connection specified in 00-config.rb
 require_relative '00-config'
 
+choose do |menu|
+  menu.prompt = "Please choose your Rally environment:"
+  menu.choice(:sandbox) do
+    @config[:base_url] = "https://sandbox.rallydev.com/slm"
+    say("You chose sandbox.")
+  end
+  menu.choice(:rally1) do
+    @config[:base_url] = "https://rally1.rallydev.com/slm"
+    say("You chose production.")
+  end
+end
+
+@config[:username]  = ask("Enter your Rally username: "){|q| q.echo = true}
+@config[:password]  = ask("Enter your Rally password: "){|q| q.echo = "*"}
+@config[:workspace] = ask("Enter your Rally workspace: "){|q| q.echo = true}
+@config[:project]   = ask("Enter your Rally project: "){|q| q.echo = true}
+
+iterations = ask("Enter the number of defects you would like to create (each with two attachments)?", Integer) { |q| q.in = 0..10000}
+
+
+puts "Username entered: " + @config[:username]
+puts "Workspace entered: " + @config[:workspace]
+puts "Project entered: " + @config[:project]
+
 jpg_file_name = "earthjello.jpeg"
 jpg_file_path =  File::join(File.dirname(__FILE__),jpg_file_name)
-
 
 def show_some_values(title, defect)
   values = ["Name", "CreationDate", "FormattedID","Attachments"]
@@ -97,19 +124,22 @@ end
 begin
   rally = RallyAPI::RallyRestJson.new(@config)
 
-  fields = {}
-  fields["Name"] = "Test Defect with attachment created at #{Time.now.utc()} with Rally API gem"
-  fields["Priority"] = "High Attention"
+  iterations.times do |iteration|
 
-  new_defect = rally.create("defect", fields)
-  show_some_values("Defect Fields", new_defect)
+    fields = {}
+    fields["Name"] = "Test Defect ##{iteration+1} with attachment created at #{Time.now.utc()} with Rally API gem"
+    fields["Priority"] = "High Attention"
 
-  post_text_attachment(rally, new_defect, "FirstAttachment.txt", "Attachment text for #{new_defect["FormattedID"]}")
-  post_jpg_attachment(rally, new_defect, jpg_file_name, jpg_file_path)
+    new_defect = rally.create("defect", fields)
+    # show_some_values("Defect Fields", new_defect)
 
+    post_text_attachment(rally, new_defect, "FirstAttachment.txt", "Attachment text for #{new_defect["FormattedID"]}")
+    post_jpg_attachment(rally, new_defect, jpg_file_name, jpg_file_path)
 
-  new_defect.read()
-  show_some_values("Defect Fields with Attachments",new_defect)
+    new_defect.read()
+    show_some_values("Defect Fields with Attachments",new_defect)
+
+  end
 
 rescue Exception => boom
   puts "*" * 80
